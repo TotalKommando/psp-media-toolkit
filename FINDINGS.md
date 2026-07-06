@@ -93,13 +93,13 @@ must stay < 0.7 s (Sony's worst is 0.6 s).
 
 ### 1.5 Verification
 
-`mp42pmf.py analyze` re-derives all of the above from a file: header fields,
+`pspmedia.py analyze` re-derives all of the above from a file: header fields,
 pack alignment, PES pattern, BF table vs. actual AU sizes, SPS/PPS/HRD, PTS
 gaps, size budget. `convert` also does a demux round-trip (must be
 byte-identical to the encoder output) and a full ffmpeg decode (frame count
 must match). This pipeline is confirmed working on real hardware.
 
-## 2. SND0.AT3 (status: unsolved encoding gap)
+## 2. SND0.AT3 (status: SOLVED — plain ATRAC3 66 kbps + fact-capacity rule)
 
 ### 2.1 Known-good samples (4 analyzed, all ATRAC3+)
 
@@ -126,7 +126,7 @@ must match). This pipeline is confirmed working on real hardware.
 The wrapper implementation reproduces the Sony sample **byte-for-byte** from
 its raw frames.
 
-### 2.3 The fact-capacity invariant (probable make-or-break rule)
+### 2.3 The fact-capacity invariant (make-or-break rule, hardware-confirmed)
 
 Every known-good file obeys:
 
@@ -135,26 +135,38 @@ fact.samples + fact.delay + 368 <= n_frames * samples_per_frame
 ```
 
 Four of five at3tool files have a tail margin of **exactly 368 samples**
-(the non-looping one has a plain ceil margin). Every file that failed on
-hardware **overclaimed** — its `fact` promised more samples than the frames
-can decode (even by as little as 309). Even known-good GTA *frames*, trimmed
-and rewrapped with an overclaiming `fact`, go silent. The tool now clamps
+(the non-looping one has a plain ceil margin). **Any file whose `fact`
+promises more samples than the frames can decode plays NOTHING on the XMB**
+— even by as little as 309 samples, and even when the frames themselves are
+byte-copies from a working retail file. This single rule was responsible for
+every "mystery" silent file during development. The tool clamps
 `fact.samples` to `capacity - delay - 368` (`clamp_fact_samples`).
 
-### 2.4 Hardware test results
+### 2.4 Hardware test results (final)
 
 | attempt | fact fits? | result |
 |---|---|---|
-| ATRAC3+ 352.8 kbps (atracdenc) — 574 KB and 456 KB combined | no (−309) | silent |
-| plain ATRAC3 66 kbps (atracdenc LP4) | no (−561) | silent |
-| GTA frames trimmed to 5 s, naive fact | no (−3311) | silent |
+| ATRAC3+ 352.8 kbps (atracdenc) — multiple sizes | no (−309) | silent |
+| plain ATRAC3 66 kbps (atracdenc LP4), naive fact | no (−561) | silent |
+| GTA retail frames trimmed to 5 s, naive fact | no (−3311) | silent |
 | real GTA SND0.AT3 unchanged | yes | **plays** |
-| v2 set (above three with clamped fact) | yes | pending |
+| GTA retail frames trimmed to 5 s, clamped fact | yes | **plays** |
+| **plain ATRAC3 66 kbps (atracdenc LP4), clamped fact** | yes | **plays** ✅ |
+| ATRAC3+ 352.8 kbps (atracdenc), clamped fact | yes | silent |
 
-If the v2 files still fail, fall back to the bitrate theory: only ATRAC3+
-48–128 kbps plays, which requires Sony `at3tool.exe`
-(`at3tool -e -br 64 -wholeloop in.wav SND0.AT3`). ffmpeg has no ATRAC3/
-ATRAC3+ encoder; atracdenc's ATRAC3+ frame size is hardcoded to 2048 bytes.
+Conclusions:
+
+1. **Plain ATRAC3 LP4 66 kbps works** — earlier "ATRAC3 doesn't play" results
+   (including community lore disputes) were actually the fact-overclaim bug.
+   A fully open-source SND0 pipeline is possible: atracdenc → OMA → RIFF
+   rewrap with clamped `fact` + `smpl`.
+2. ATRAC3+ **352.8 kbps is rejected regardless** — the XMB has a real rate
+   ceiling for AT3+ (retail files sit at 48–128 kbps). Since atracdenc's AT3+
+   frame size is hardcoded to 2048 bytes, retail-style AT3+ still requires
+   Sony `at3tool.exe` (`at3tool -e -br 64 -wholeloop in.wav SND0.AT3`) —
+   but it is no longer *needed* for working sound.
+3. ffmpeg has no ATRAC3/ATRAC3+ encoder; it decodes both (useful for
+   verification).
 
 ## 3. EBOOT.PBP notes
 

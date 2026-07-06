@@ -24,8 +24,11 @@ Key format facts (from Sony reference):
          chunks = IDR GOPs, each led by a private-stream-2 (0xBF) AU-size
          index packet, closed by 0xBE padding; PTS/DTS on chunk starts and
          every >=16th frame; P-STD buffer 80 KB declared in three places.
-  audio: ATRAC3+ 44.1 kHz stereo, 376-byte frames (64.768 kbps), RIFF wrap
-         with fact (delay 2820) and smpl full-file loop chunk.
+  audio: 44.1 kHz stereo RIFF with fact + smpl loop chunks. Retail SND0s are
+         ATRAC3+ 48-128 kbps (at3tool); plain ATRAC3 LP4 66 kbps (atracdenc)
+         is hardware-verified working. CRITICAL: fact must never claim more
+         samples than frames can decode (samples + delay + 368 <= frames*spf)
+         or the XMB plays nothing.
   XMB budget: keep each file under ~500 KB.
 """
 
@@ -618,8 +621,9 @@ def find_at3_encoder(explicit, search_dirs):
 
 
 def cmd_snd0(src, out, encoder, codec='at3'):
-    """codec: 'at3'  = plain ATRAC3 LP (~66 kbps, the XMB-documented rate)
-              'at3p' = ATRAC3+ (Sony icon style; atracdenc can only do 352 kbps)"""
+    """codec: 'at3'  = plain ATRAC3 LP4 66 kbps — hardware-verified working
+              'at3p' = ATRAC3+ (retail style; needs at3tool for 48-128 kbps;
+                       atracdenc's 352.8 kbps is rejected by the PSP)"""
     here = os.path.dirname(os.path.abspath(__file__))
     kind, enc = find_at3_encoder(encoder,
                                  [here, os.path.dirname(os.path.abspath(src))])
@@ -652,8 +656,9 @@ def cmd_snd0(src, out, encoder, codec='at3'):
             raw = os.path.join(tmp, 'out.oma')
             run([enc, '-e', 'atrac3plus', '-i', wav, '-o', raw])
             frames = extract_at3p_frames(open(raw, 'rb').read())
-            print('warning: atracdenc AT3+ is fixed at 352.8 kbps; known-'
-                  'working game SND0s are 48-128 kbps (needs at3tool.exe)')
+            print('warning: atracdenc AT3+ is fixed at 352.8 kbps, which the '
+                  'PSP REJECTS (hardware-tested). Use the default at3 codec, '
+                  'or at3tool.exe for retail-style AT3+ 48-128 kbps')
             write_snd0_at3p(out, frames, nsamples)
         else:
             oma = os.path.join(tmp, 'out.oma')
@@ -856,10 +861,11 @@ def main():
     s.add_argument('src')
     s.add_argument('-o', '--out', default='SND0.AT3')
     s.add_argument('--encoder', default='auto')
-    s.add_argument('--codec', default='at3p', choices=['at3', 'at3p'],
-                   help='at3p = ATRAC3+ (what real game SND0s use; 48-128k '
-                        'via at3tool, 352.8k via atracdenc), at3 = plain '
-                        'ATRAC3 ~66kbps (did NOT play on XMB in testing)')
+    s.add_argument('--codec', default='at3', choices=['at3', 'at3p'],
+                   help='at3 = plain ATRAC3 66kbps via atracdenc — hardware-'
+                        'verified working (default). at3p = ATRAC3+ (retail '
+                        'style, 48-128k, needs at3tool; atracdenc can only '
+                        'do 352.8k which the PSP rejects)')
     al = sub.add_parser('all')
     al.add_argument('video')
     al.add_argument('audio')
