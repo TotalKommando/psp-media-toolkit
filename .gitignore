@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.PMF
+*.AT3
+*.pbp
+EBOOT.PBP
+x264pass*
