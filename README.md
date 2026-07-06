@@ -45,7 +45,7 @@ Options:
 | `--budget-kb` | 450 | target file-size budget (XMB limit is ~500 KB, shared with SND0.AT3 if present) |
 | `-o` | `ICON1.PMF` | output path |
 
-## Why your PMF conversion glitches (the short version)
+## Why the PMF conversion was glitching out (the short version)
 
 The XMB icon player is **not** a general PMF player. It has a small fixed
 ring buffer sized for Sony's icon encoding regime. Converters that produce
@@ -82,6 +82,8 @@ executable is untouched.
 ## Audio status (SND0.AT3)
 
 Not solved yet. Findings so far (all verified on hardware):
+
+[AT3 Apparently already is figured out by @GrayJack so I left it here]
 
 - Every known-good `SND0.AT3` (from retail games and homebrew) is
   **ATRAC3+, 48–128 kbps, 44.1 kHz stereo** in a RIFF wrapper with `fact` +
